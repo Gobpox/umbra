@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>UMBRA — walk the shadow home</title>
+<meta name="description" content="UMBRA: a shadow-walking game. Turn the sun, stretch the shade of pillars and trees into a road, and guide a little spirit across twelve courtyards where the light itself burns.">
+<style>
+  :root{
+    --ink:#f2e7c9; --gold:#ffcf87; --gold2:#ffb37a; --dim:#b9a888;
+    --panel:rgba(16,12,36,0.88); --panel2:rgba(24,18,52,0.92);
+    --line:rgba(255,207,135,0.35); --bad:#ff9a5c; --good:#a8ffd8; --cyan:#a8d8ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:#07060f;color:var(--ink);font-family:Georgia,'Times New Roman',serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% 0%,#1b1436 0%,#07060f 70%)}
+  #stage{position:relative;width:min(100vw,171.4vh);aspect-ratio:12/7}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:6px}
+  .hidden{display:none !important}
+  .smallcaps{letter-spacing:.22em;text-transform:uppercase;font-size:11px}
+  button{font-family:inherit;cursor:pointer}
+
+  /* ————— HUD ————— */
+  #hud{position:absolute;inset:0;pointer-events:none}
+  .card{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;backdrop-filter:blur(3px)}
+  #hud-tl{top:10px;left:10px;min-width:212px}
+  #hud-tl .watch{font-size:19px;color:var(--gold);letter-spacing:.06em}
+  #hud-tl .cond{font-size:12px;color:var(--dim);margin-top:2px}
+  #hud-tl .cond b{color:var(--good);font-weight:normal}
+  #hud-tl .cond i{color:var(--bad);font-style:normal}
+  #burnwrap{margin-top:7px}
+  #burnbar{height:9px;border-radius:5px;background:rgba(255,255,255,0.10);overflow:hidden;border:1px solid rgba(255,255,255,0.14)}
+  #burnfill{height:100%;width:0%;background:linear-gradient(90deg,#ffb37a,#ff6a35);border-radius:5px;transition:width .12s}
+  #burnlabel{font-size:10.5px;color:var(--dim);letter-spacing:.18em;margin-top:3px}
+  #hud-tr{top:10px;right:10px;text-align:right}
+  #hud-tr .score{font-size:24px;color:#fff}
+  #hud-tr .sub{font-size:11.5px;color:var(--dim)}
+  #hud-tr .sub b{color:var(--gold);font-weight:normal}
+  #hud-boss{top:10px;left:50%;transform:translateX(-50%);text-align:center;min-width:280px}
+  #hud-boss .bname{color:var(--gold2);letter-spacing:.14em;font-size:14px}
+  #hud-boss .bnote{font-size:11.5px;color:var(--dim)}
+  #hud-bl{bottom:10px;left:10px;font-size:12px;color:var(--dim);line-height:1.75}
+  #hud-bl .key{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--ink);font-size:11px;background:rgba(255,255,255,0.05)}
+  #hud-br{position:absolute;bottom:10px;right:10px;text-align:right}
+  #gifts-row{display:flex;gap:5px;justify-content:flex-end;margin-bottom:6px}
+  .gift-chip{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--gold)}
+  .gift-chip.syn{border-color:var(--gold);box-shadow:0 0 9px rgba(255,207,135,0.5)}
+  #sun-dial{position:relative;width:64px;height:64px;margin-left:auto}
+  #notes{position:absolute;top:118px;left:10px;display:flex;flex-direction:column;gap:4px;max-width:330px}
+  .note{background:var(--panel);border-left:3px solid var(--gold);border-radius:6px;padding:5px 10px;font-size:12.5px;animation:notein .25s ease-out}
+  @keyframes notein{from{opacity:0;transform:translateX(-8px)}to{opacity:1}}
+  #stage-banner{position:absolute;top:34%;left:0;right:0;text-align:center;pointer-events:none}
+  #stage-banner .sb-name{font-size:44px;color:#fff;text-shadow:0 0 26px rgba(255,207,135,0.65);letter-spacing:.05em}
+  #stage-banner .sb-sub{color:var(--gold);letter-spacing:.3em;font-size:13px;margin-top:4px}
+
+  /* ————— shared screens ————— */
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;overflow:auto}
+  .scrim{position:absolute;inset:0;background:rgba(5,4,16,0.45)}
+  h1.title{font-size:min(92px,11vw);letter-spacing:.14em;color:#fff;font-weight:normal;text-align:center;
+    text-shadow:0 0 12px rgba(255,207,135,0.85),0 0 46px rgba(255,160,70,0.55),0 2px 0 rgba(120,60,10,0.6)}
+  h1.title .u{color:var(--gold)}
+  .tagline{text-align:center;color:var(--ink);font-style:italic;font-size:min(17px,2.2vw);margin-top:2px;text-shadow:0 1px 8px #000}
+  .cols{display:flex;gap:14px;margin-top:16px;width:min(1060px,96%);align-items:stretch}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 16px;flex:1}
+  .box h3{color:var(--gold);letter-spacing:.22em;font-size:12px;font-weight:normal;margin-bottom:9px}
+  .box .row{display:flex;gap:9px;align-items:baseline;margin:5px 0;font-size:13.5px;line-height:1.35}
+  .box .row .k{flex:0 0 auto}
+  .key{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 6px;font-size:11.5px;background:rgba(255,255,255,0.06);color:#fff}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:2px}
+  .win{color:var(--good)} .lose{color:var(--bad)}
+  .cta{pointer-events:auto;margin-top:16px;background:linear-gradient(180deg,#ffdf9e,#f5a94f);color:#2a1503;border:1px solid #ffe9b8;
+    font-size:19px;letter-spacing:.12em;padding:13px 42px;border-radius:999px;box-shadow:0 0 24px rgba(255,180,80,0.45)}
+  .cta:hover{filter:brightness(1.07)}
+  .ghostbtn{pointer-events:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:10px 22px;font-size:14px;letter-spacing:.08em}
+  .ghostbtn:hover{border-color:var(--gold)}
+  .seasons{display:flex;gap:10px;margin-top:14px}
+  .season{pointer-events:auto;width:196px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--ink)}
+  .season.sel{border-color:var(--gold);box-shadow:0 0 14px rgba(255,207,135,0.35)}
+  .season .sname{font-size:17px;color:#fff;letter-spacing:.08em}
+  .season .stag{color:var(--gold);font-size:10.5px;letter-spacing:.22em}
+  .season .sdesc{font-size:12px;color:var(--dim);margin-top:3px;line-height:1.35}
+  .season .sbest{font-size:11.5px;color:var(--cyan);margin-top:5px}
+  .strip{margin-top:13px;font-size:12.5px;color:var(--dim);letter-spacing:.06em;text-align:center}
+  .strip b{color:var(--gold);font-weight:normal}
+
+  /* ————— draft ————— */
+  #draft .cards{display:flex;gap:14px;margin-top:14px}
+  .dcard{pointer-events:auto;width:238px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px 16px 13px;color:var(--ink);text-align:left;position:relative}
+  .dcard:hover{border-color:var(--gold);transform:translateY(-3px)}
+  .dcard{transition:transform .15s}
+  .dcard .fam{font-size:10.5px;letter-spacing:.26em;color:var(--cyan)}
+  .dcard .fam.SHADE{color:#c9a8ff}.dcard .fam.SPIRIT{color:var(--good)}.dcard .fam.DIAL{color:var(--gold)}
+  .dcard .icon{font-size:34px;text-align:center;margin:8px 0 4px;color:#fff;text-shadow:0 0 14px rgba(255,207,135,0.6)}
+  .dcard .gname{font-size:19px;text-align:center;color:#fff}
+  .dcard .gdesc{font-size:13px;color:var(--dim);text-align:center;line-height:1.45;margin-top:5px;min-height:38px}
+  .dcard .wakes{font-size:11.5px;text-align:center;color:var(--gold);margin-top:6px;min-height:15px}
+  .dcard .take{margin-top:9px;text-align:center;font-size:11px;letter-spacing:.2em;color:var(--dim)}
+  #draft .nextline{margin-top:14px;font-size:13.5px;color:var(--dim);text-align:center}
+  #draft .nextline b{color:#fff;font-weight:normal}
+
+  /* ————— end screen ————— */
+  #over .panel{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:20px 26px;width:min(880px,96%)}
+  #over h2{font-size:40px;font-weight:normal;color:#fff;letter-spacing:.08em;text-shadow:0 0 22px rgba(255,207,135,0.5)}
+  .over-flex{display:flex;gap:22px;margin-top:10px}
+  .gradebox{text-align:center;flex:0 0 128px}
+  .grade{font-size:88px;line-height:1;color:var(--gold);text-shadow:0 0 30px rgba(255,190,90,0.7)}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:1}
+  .tile{background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.08);border-radius:9px;padding:8px 10px;text-align:center}
+  .tile .tv{font-size:21px;color:#fff}
+  .tile .tl{font-size:10px;letter-spacing:.18em;color:var(--dim)}
+  #chart{display:flex;gap:4px;align-items:flex-end;height:64px;margin-top:14px}
+  #chart .bar{flex:1;border-radius:3px 3px 0 0;min-height:3px;position:relative}
+  #chart .bar span{position:absolute;top:-15px;left:0;right:0;text-align:center;font-size:9.5px;color:var(--dim)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--ink);background:rgba(255,255,255,0.04)}
+  .chip.syn{border-color:var(--gold);color:var(--gold)}
+  #over .btnrow{display:flex;gap:10px;justify-content:center;margin-top:16px}
+  .lastruns{font-size:12.5px;color:var(--dim);margin-top:10px;text-align:center;line-height:1.7}
+  .lastruns b{color:var(--ink);font-weight:normal}
+
+  #pause .panel,#howto .panel{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:22px 28px;width:min(560px,94%);line-height:1.65;font-size:14.5px}
+  #pause h2,#howto h2{color:#fff;font-weight:normal;letter-spacing:.1em;margin-bottom:8px}
+  #touch{position:absolute;inset:auto 0 0 0;display:none;justify-content:space-between;padding:0 14px 64px;pointer-events:none}
+  .tbtn{pointer-events:auto;width:58px;height:58px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:11px}
+  @media (pointer:coarse){ #touch{display:flex} #hud-bl{display:none} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv" width="1200" height="700"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="card" id="hud-tl">
+        <div class="watch" id="hud-watch">WATCH I · THE THRESHOLD</div>
+        <div class="cond"><b>WIN</b> reach the moon gate · <i>LOSE</i> burn away in the light</div>
+        <div id="burnwrap"><div id="burnbar"><div id="burnfill"></div></div><div id="burnlabel">SHADE — SAFE</div></div>
+      </div>
+      <div class="card" id="hud-boss" class="hidden">
+        <div class="bname" id="boss-name">THE SUNWRAITH</div>
+        <div class="bnote" id="boss-note">Its gaze burns even through thin shade — cross between sweeps</div>
+      </div>
+      <div class="card" id="hud-tr">
+        <div class="score" id="hud-score">0</div>
+        <div class="sub">◆ <b id="hud-crystals">0</b> crystals · ✦ <b id="hud-embers">10</b> embers · <span id="hud-time">0:00</span></div>
+        <div class="sub" id="hud-season">SUMMER · score ×1</div>
+      </div>
+      <div id="notes"></div>
+      <div class="card" id="hud-bl">
+        <span class="key">W A S D</span> walk · <span class="key">MOUSE</span> aim the sun · <span class="key">Q</span><span class="key">E</span> turn it · <span class="key">R</span> restart · <span class="key">ESC</span> pause
+      </div>
+      <div id="hud-br">
+        <div id="gifts-row"></div>
+        <canvas id="sun-dial" width="64" height="64"></canvas>
+      </div>
+      <div id="stage-banner" class="hidden"><div class="sb-name" id="sb-name"></div><div class="sb-sub" id="sb-sub"></div></div>
+    </div>
+    <div id="touch">
+      <button class="tbtn" id="t-pause">II</button>
+      <button class="tbtn" id="t-restart">R</button>
+    </div>
+
+    <!-- TITLE -->
+    <div id="title" class="screen">
+      <h1 class="title">U<span class="u">M</span>BRA</h1>
+      <div class="tagline">The light burns. The shade is a road. Walk the shadow home.</div>
+      <div class="cols">
+        <div class="box">
+          <h3>HOW TO WALK THE SHADE</h3>
+          <div class="row"><span class="k"><span class="key">W A S D</span></span><span>Walk the little spirit</span></div>
+          <div class="row"><span class="k"><span class="key">MOUSE</span></span><span>Aim the sun — shade falls away from your pointing</span></div>
+          <div class="row"><span class="k"><span class="key">Q</span> <span class="key">E</span></span><span>Turn the sun by hand</span></div>
+          <div class="row"><span class="k"><span class="key">R</span></span><span>Restart the courtyard</span></div>
+          <div class="row"><span><span class="win">WIN</span> cross all twelve courtyards to the last gate.<br><span class="lose">LOSE</span> stand in the light and burn — the courtyard begins again.</span></div>
+          <div class="row"><span>◆ Shade crystals hide in the light. Statues marked ↔ can be pushed.</span></div>
+        </div>
+        <div class="box">
+          <h3>THE FOUR WATCHES</h3>
+          <div class="row"><span class="k"><span class="dot" style="background:#ffcf87"></span></span><span><b>Dawn</b> — long kind shade. Learn the road.</span></div>
+          <div class="row"><span class="k"><span class="dot" style="background:#fff3c4"></span></span><span><b>Noon</b> — shade shrinks to ribbons. Idols walk here.</span></div>
+          <div class="row"><span class="k"><span class="dot" style="background:#ffab6b"></span></span><span><b>Dusk</b> — the sun drifts on its own; trees sway.</span></div>
+          <div class="row"><span class="k"><span class="dot" style="background:#a8d8ff"></span></span><span><b>Night</b> — the Sunwraith walks, and its gaze burns.</span></div>
+          <div class="row"><span>Between courtyards, take <b>1 of 3 Shadow Gifts</b>. Two of one family wake its synergy.</span></div>
+        </div>
+      </div>
+      <div class="seasons" id="season-row"></div>
+      <button class="cta" id="btn-play">STEP INTO THE SHADE</button>
+      <div class="strip" id="title-strip"></div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="ghostbtn" id="btn-how">THE RITES (HOW IT SCORES)</button>
+        <button class="ghostbtn" id="btn-sound">SOUND: ON</button>
+      </div>
+    </div>
+
+    <!-- DRAFT -->
+    <div id="draft" class="screen hidden">
+      <div class="scrim"></div>
+      <div style="position:relative;text-align:center">
+        <div class="smallcaps" style="color:var(--gold)" id="draft-head">THE WATCH IS KEPT</div>
+        <div style="font-size:34px;color:#fff;margin-top:4px">Choose a Shadow Gift</div>
+        <div style="color:var(--dim);font-size:13.5px;margin-top:3px">Two gifts of one family wake its synergy · you hold <span id="draft-embers" style="color:var(--gold)">0</span> ✦ embers</div>
+        <div class="cards" id="draft-cards" style="position:relative"></div>
+        <div class="nextline" id="draft-next"></div>
+        <div style="margin-top:12px"><button class="ghostbtn" id="btn-reroll">↻ REROLL · 20 ✦</button></div>
+      </div>
+    </div>
+
+    <!-- END -->
+    <div id="over" class="screen hidden">
+      <div class="scrim"></div>
+      <div class="panel" style="position:relative">
+        <h2 id="over-title">THE LAST GATE OPENS</h2>
+        <div style="color:var(--dim);font-style:italic" id="over-sub">Twelve courtyards crossed. The shade road is walked.</div>
+        <div class="over-flex">
+          <div class="gradebox">
+            <div class="smallcaps" style="color:var(--dim)">GRADE</div>
+            <div class="grade" id="over-grade">S</div>
+            <div class="smallcaps" style="color:var(--gold)" id="over-season">SUMMER</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:13px;letter-spacing:.2em;color:var(--dim)">FINAL SCORE <span id="over-best" style="color:var(--gold)"></span></div>
+            <div style="font-size:38px;color:#fff" id="over-score">0</div>
+            <div class="tiles" style="margin-top:8px">
+              <div class="tile"><div class="tv" id="ov-courts">12/12</div><div class="tl">COURTYARDS</div></div>
+              <div class="tile"><div class="tv" id="ov-crystals">0</div><div class="tl">CRYSTALS</div></div>
+              <div class="tile"><div class="tv" id="ov-time">0:00</div><div class="tl">TIME IN SHADE</div></div>
+              <div class="tile"><div class="tv" id="ov-deaths">0</div><div class="tl">BURNINGS</div></div>
+              <div class="tile"><div class="tv" id="ov-gifts">0</div><div class="tl">GIFTS TAKEN</div></div>
+              <div class="tile"><div class="tv" id="ov-syn">0</div><div class="tl">SYNERGIES</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="smallcaps" style="color:var(--dim);margin-top:14px">SCORE BY COURTYARD</div>
+        <div id="chart"></div>
+        <div class="smallcaps" style="color:var(--dim);margin-top:12px">THE BUILD</div>
+        <div class="chips" id="over-build"></div>
+        <div class="lastruns" id="over-runs"></div>
+        <div class="btnrow">
+          <button class="cta" id="btn-again" style="margin-top:0">WALK IT AGAIN</button>
+          <button class="ghostbtn" id="btn-menu">TITLE · ESC</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAUSE -->
+    <div id="pause" class="screen hidden">
+      <div class="scrim"></div>
+      <div class="panel" style="position:relative">
+        <h2>PAUSED — THE SUN WAITS</h2>
+        <div>Music <input type="range" id="vol-music" min="0" max="100" value="70" style="vertical-align:middle"> · Sound <input type="range" id="vol-sfx" min="0" max="100" value="90" style="vertical-align:middle"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ghostbtn" id="btn-resume">RESUME</button>
+          <button class="ghostbtn" id="btn-restart-run">RESTART RUN</button>
+          <button class="ghostbtn" id="btn-quit">QUIT TO TITLE</button>
+          <button class="ghostbtn" id="btn-wipe">RESET ALL PROGRESS</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOW IT SCORES -->
+    <div id="howto" class="screen hidden">
+      <div class="scrim"></div>
+      <div class="panel" style="position:relative">
+        <h2>THE RITES — HOW IT SCORES</h2>
+        <p>Each courtyard pays <b>1,000</b> for the crossing, up to <b>+10 per second</b> under its par, and <b>+250</b> per shade crystal — all multiplied by your season. Burnings cost you time, never score directly, but they stain your grade.</p>
+        <p style="margin-top:8px">Grades run D to S. Feats are kept forever: cross untouched, hoard crystals, keep the Dusk flawless, walk in Autumn, finish swifter than light.</p>
+        <p style="margin-top:8px">The shade you stand in is real: every pillar, tree, statue and wall throws it, and the sun you aim decides where it lies. If a road looks impossible, turn the sun — not yourself.</p>
+        <div style="margin-top:12px"><button class="ghostbtn" id="btn-how-back">BACK</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
